@@ -1,14 +1,14 @@
 const steps = [
   {
     id: 'goal', view: 'overview', target: '.session-card',
-    title: 'A practical NCCT training goal',
+    title: 'A practical NCCT cooperative-training goal',
     body: 'Help cooperative teams build useful record-keeping habits, attend a field session, check what they learned, and keep a clear completion record.',
     next: 'Next opens the field-kit view and introduces the intended trainer setup.',
     note: 'This is one small training-flow prototype, not the full NCCT ERP or LMS. Every person and record is synthetic.',
   },
   {
     id: 'hardware', view: 'fieldkit', target: '#hardwareStatusCard',
-    title: 'Simple hardware for a field pilot',
+    title: 'A simple setup for a future field pilot',
     body: 'A trainer could start with one Android phone or tablet and its built-in camera for printed QR cards. A power bank helps through the day; Wi-Fi or a mobile hotspot is used when it is time to sync. A staff member can review the cohort on an existing laptop.',
     next: 'Next sets this browser demo to Offline.',
     note: 'The status on this screen is explicit: no physical hardware is connected. A separate scanner is optional; face-recognition hardware is not part of this plan.',
@@ -64,17 +64,17 @@ const steps = [
   },
   {
     id: 'sync', view: 'fieldkit', target: '#syncButton', action: 'sync',
-    title: 'Move the queue into the local portal view',
-    body: 'The app runs its real demo sync action: pending items change to Synced and become visible in the portal-style cohort view in this same browser.',
+    title: 'Move the queue into the local demo roster',
+    body: 'The app runs its demo sync action: pending items change to Synced and appear in this browser’s sample cohort roster.',
     next: 'Next opens the updated cohort roster.',
     note: 'Sync is simulated locally. There is no central backend and no cross-device synchronization.',
   },
   {
     id: 'portal', view: 'courses', target: '.cohort-roster .guided-trainee-row',
-    title: 'Review the updated training record',
-    body: 'The roster now reflects the synced attendance and 100% knowledge check for the synthetic trainee. The overview, field kit, and roster all read the same browser-local records.',
+    title: 'Review the updated demo record',
+    body: 'The roster now reflects the attendance and 100% knowledge check marked synced for the synthetic trainee. The overview, field kit, and roster all read the same browser-local records.',
     next: 'Next opens the certificate rules and eligibility result.',
-    note: 'This is a portal-style screen, not a live staff portal or shared institution-wide database.',
+    note: 'This is a simulated roster view, not a live staff system or shared institutional database.',
   },
   {
     id: 'certificate', view: 'certificates', target: '.certificate-preview',
@@ -144,10 +144,10 @@ export function createGuidedTour({ setView, renderApp, actions }) {
   function renderConclusion() {
     return `<div class="tour-scrim" aria-hidden="true"></div>
       <section class="tour-card is-conclusion" role="dialog" aria-modal="true" aria-labelledby="tourConclusionTitle">
-        <div class="conclusion-topline"><span class="conclusion-brand"><span class="brand-mark"><span></span><span></span><span></span><span></span></span> SAHAKARI · NCCT FIELD KIT</span><span class="conclusion-label">WALKTHROUGH COMPLETE</span><button class="tour-close" data-tour-action="close" aria-label="Exit walkthrough">×</button></div>
+        <div class="conclusion-topline"><span class="conclusion-brand"><span class="brand-mark"><span></span><span></span><span></span><span></span></span> Co Step · cooperative training demo</span><span class="conclusion-label">WALKTHROUGH COMPLETE</span><button class="tour-close" data-tour-action="close" aria-label="Exit walkthrough">×</button></div>
         <div class="conclusion-hero"><div><p class="conclusion-kicker">FROM FIELD SESSION TO TRAINING RECORD</p><h2 id="tourConclusionTitle">A clear training journey, with honest boundaries.</h2><p>Attendance, a useful lesson, a knowledge check, simulated sync, cohort progress, and a locally verified sample certificate fit into one understandable flow.</p></div><div class="journey-stamp"><span>TRAIN</span><i>→</i><span>LEARN</span><i>→</i><span>VERIFY</span></div></div>
         <div class="conclusion-columns">
-          <div class="conclusion-column"><h3>What this prototype demonstrates</h3><ul><li>Trainer-confirmed attendance for synthetic trainees</li><li>A lesson and four-question assessment with feedback</li><li>Pending records, duplicate protection, and simulated sync</li><li>A portal-style roster and local certificate check</li></ul></div>
+          <div class="conclusion-column"><h3>What this prototype demonstrates</h3><ul><li>Trainer-confirmed attendance for synthetic trainees</li><li>A lesson and four-question assessment with feedback</li><li>Pending records, duplicate protection, and simulated sync</li><li>A same-browser cohort roster and local sample certificate check</li></ul></div>
           <div class="conclusion-column future-column"><h3>What is not implemented</h3><ul><li>No physical field hardware is connected</li><li>No central NCCT backend or cross-device sync</li><li>No face recognition or production identity service</li><li>No installed Android app or authoritative certificate service</li></ul></div>
         </div>
         <div class="conclusion-boundary"><strong>Prototype boundary:</strong> all sample records live in this browser. The Offline switch and sync are simulated; no data is sent to a central system. A real pilot would still need approved devices, secure backend services, privacy/security review, and field testing.</div>
