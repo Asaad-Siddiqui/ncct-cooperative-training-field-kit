@@ -118,29 +118,23 @@ export function createGuidedTour({ setView, renderApp, actions }) {
     }
     card.style.transform = 'none';
     const rect = target.getBoundingClientRect();
-    const width = card.getBoundingClientRect().width || Math.min(410, window.innerWidth - 28);
     const margin = 14;
+    const gap = 18;
+    const width = card.getBoundingClientRect().width || Math.min(420, window.innerWidth - margin * 2);
     const cardHeight = card.getBoundingClientRect().height || 320;
-    if (['quiz', 'pending', 'portal'].includes(steps[current]?.id) && window.innerWidth > 760) {
-      card.style.left = '260px';
-      card.style.top = `${Math.min(Math.max(margin, 82), Math.max(margin, window.innerHeight - cardHeight - margin))}px`;
+    if (window.innerWidth >= 1040) {
+      const left = Math.max(margin, rect.left - width - gap);
+      const top = Math.min(Math.max(margin, rect.top + rect.height / 2 - cardHeight / 2), Math.max(margin, window.innerHeight - cardHeight - margin));
+      card.style.left = `${left}px`;
+      card.style.top = `${top}px`;
       return;
     }
-    const clamp = (value, max) => Math.min(Math.max(margin, value), Math.max(margin, max - margin));
-    const candidates = [
-      { left: rect.left + rect.width / 2 - width / 2, top: rect.bottom + 18 },
-      { left: rect.left + rect.width / 2 - width / 2, top: rect.top - cardHeight - 18 },
-      { left: rect.right + 18, top: rect.top + rect.height / 2 - cardHeight / 2 },
-      { left: rect.left - width - 18, top: rect.top + rect.height / 2 - cardHeight / 2 },
-    ].map(point => ({ left: clamp(point.left, window.innerWidth - width), top: clamp(point.top, window.innerHeight - cardHeight) }));
-    const overlapArea = point => {
-      const overlapWidth = Math.max(0, Math.min(point.left + width, rect.right) - Math.max(point.left, rect.left));
-      const overlapHeight = Math.max(0, Math.min(point.top + cardHeight, rect.bottom) - Math.max(point.top, rect.top));
-      return overlapWidth * overlapHeight;
-    };
-    const placement = candidates.reduce((best, point) => overlapArea(point) < overlapArea(best) ? point : best);
-    card.style.left = `${placement.left}px`;
-    card.style.top = `${placement.top}px`;
+    const top = rect.bottom + gap;
+    const availableHeight = Math.max(160, window.innerHeight - top - margin);
+    card.style.left = '50%';
+    card.style.top = `${Math.min(top, window.innerHeight - Math.min(cardHeight, availableHeight) - margin)}px`;
+    card.style.maxHeight = `${availableHeight}px`;
+    card.style.transform = 'translateX(-50%)';
   }
 
   function buttonMarkup(label, action, kind = 'quiet', disabled = false) {
@@ -166,14 +160,17 @@ export function createGuidedTour({ setView, renderApp, actions }) {
     if (!container) return;
     clearHighlights();
     if (current < 0) {
+      document.body.classList.remove('tour-layout-active');
       container.innerHTML = '';
       return;
     }
     if (current === steps.length) {
+      document.body.classList.remove('tour-layout-active');
       container.innerHTML = renderConclusion();
       bindControls();
       return;
     }
+    document.body.classList.add('tour-layout-active');
     const step = steps[current];
     const target = document.querySelector(step.target);
     if (target) target.classList.add('tour-focus');
@@ -190,7 +187,7 @@ export function createGuidedTour({ setView, renderApp, actions }) {
     bindControls();
     if (target) {
       requestAnimationFrame(() => {
-        target.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+        target.scrollIntoView({ behavior: 'smooth', block: window.innerWidth >= 1040 ? 'center' : 'start', inline: 'nearest' });
         requestAnimationFrame(positionCard);
       });
     } else requestAnimationFrame(positionCard);
@@ -230,6 +227,7 @@ export function createGuidedTour({ setView, renderApp, actions }) {
     current = -1;
     busy = false;
     clearHighlights();
+    document.body.classList.remove('tour-layout-active');
     renderApp();
   }
 
