@@ -1,5 +1,7 @@
 import QRCode from 'qrcode';
 import './styles.css';
+import './tour.css';
+import { createGuidedTour } from './guided-tour.js';
 
 const STORAGE_KEY = 'ncct-cooperative-training-field-kit:v1';
 const SESSION_ID = 'batch-08-demo-session';
@@ -214,6 +216,7 @@ function renderAppShell() {
         <div class="topbar-actions">
           <div class="connection-pill ${state.online ? 'is-online' : 'is-offline'}"><span class="connection-dot"></span><span>${state.online ? 'Online' : 'Offline'}</span><button id="connectionToggle" class="connection-switch" aria-label="Toggle simulated connection" title="Toggle simulated connection"><span></span></button></div>
           <button id="syncButton" class="button button-primary sync-top ${pendingCount() ? 'has-pending' : ''}" ${!state.online ? 'disabled' : ''}>${icon('cloud', 16)}<span>Sync now</span>${pendingCount() ? `<i>${pendingCount()}</i>` : ''}</button>
+          <button id="startTourButton" class="button button-quiet start-tour-button" title="Start the guided walkthrough">${icon('spark', 14)}<span>Start</span></button>
           <button class="icon-button help-button" title="Prototype information" id="boundaryButton">${icon('shield', 17)}</button>
         </div>
       </header>
@@ -353,6 +356,7 @@ function render() {
   else if (state.view === 'certificates') content.innerHTML = renderCertificates();
   else content.innerHTML = renderOverview();
   bindEvents();
+  guidedTour?.render();
   if (!verifyCode && state.view === 'certificates' && currentCertificate(state.activeTraineeId)) hydrateCertificateQr();
 }
 function bindEvents() {
@@ -363,6 +367,7 @@ function bindEvents() {
   }));
   document.querySelector('#connectionToggle')?.addEventListener('click', () => setConnection(!state.online));
   document.querySelector('#syncButton')?.addEventListener('click', syncNow);
+  document.querySelector('#startTourButton')?.addEventListener('click', () => guidedTour.start());
   document.querySelectorAll('[data-action="sync"]').forEach(button => button.addEventListener('click', syncNow));
   document.querySelector('#boundaryButton')?.addEventListener('click', showBoundary);
   document.querySelector('#boundaryLink')?.addEventListener('click', showBoundary);
@@ -458,5 +463,13 @@ function resetDemo() {
   render();
   setToast('Demo data reset in this browser');
 }
+const guidedTour = createGuidedTour({
+  setView(view) {
+    state.view = view;
+    if (new URLSearchParams(location.search).has('verify')) history.replaceState({}, '', location.pathname);
+    save();
+  },
+  renderApp: render,
+});
 window.addEventListener('popstate', render);
 render();

@@ -1,22 +1,29 @@
 # Sahakari Field Kit — NCCT Cooperative Training Prototype
+A responsive, browser-only prototype for a cooperative training field kit and portal-style cohort view. It demonstrates a small learning path: attendance, a short lesson and quiz, a simulated sync queue, cohort progress, and completion certificates with a local QR verification view.
 
-A lightweight, responsive single-page prototype for a cooperative training field kit and its staff portal. It demonstrates the first slice of a larger NCCT/VAMNICOM training ecosystem: offline attendance capture, a short lesson and quiz, a simulated sync queue, progress visibility, and criteria-gated certificates with a verification view.
+## Guided walkthrough
 
-## Demo flow
+Open the app and choose **Start** in the top bar. A highlighted screen and plain-language tip explain each step. Use **Next** and **Back** to move through the actual prototype screens; choose **Finish walkthrough** on the presentation-style conclusion.
 
-1. Open **Field kit** and switch the simulated device to **Offline**.
-2. Check in a synthetic trainee by scanning a QR card (where the browser supports `BarcodeDetector`) or by trainer-confirmed trainee ID. The same trainee cannot be counted twice for the demo session.
-3. Open **Lesson & quiz**, mark the short lesson as read, and submit the four-question knowledge check. A score of 75% or higher is required.
-4. Switch back **Online** and choose **Sync now**. The local pending queue is replayed idempotently into the simulated portal.
-5. Open **Certificates**. A certificate is issued only after at least one synced attendance event and a synced passing quiz. Open its verification view or scan its QR code.
+The walkthrough explains:
 
-The first synthetic trainee is `STU-24017` (QR payload: `NCCT|STU-24017`). Other demo IDs are visible in the app. The quiz answers are about offline capture, trainer confirmation, duplicate-safe sync, and completion criteria.
+1. **Training goal:** a practical cooperative record-keeping lesson with a clear way to follow participation and learning.
+2. **Field team:** trainees take part, a trainer facilitates and confirms attendance, and a coordinator reviews cohort progress. The shared phone/tablet is only an example of the intended field workflow; no physical hardware is connected.
+3. **Offline attendance:** switch the app’s connection control to Offline and use a synthetic trainee ID. QR scanning is optional; camera permission is requested only when Scan QR card is chosen.
+4. **Lesson and quiz:** mark the short lesson read, then answer four questions. A score of 75% or more passes this demo check.
+5. **Pending records:** offline attendance and quiz activity wait in the browser’s local queue.
+6. **Sync and portal view:** switch to Online, choose **Sync now**, and view the resulting attendance and learning status in the cohort roster.
+7. **Certificate:** one synced attendance record plus a synced quiz score of at least 75% makes the synthetic trainee eligible. The QR opens a local verification view.
+
+The app remains usable without the walkthrough. Existing Field kit, Lesson & quiz, Courses & cohorts, Certificates, QR-card, verification, connection-toggle, sync, and reset-demo actions are retained.
 
 ## Prototype boundary
 
-This is a browser-only prototype, not a production LMS, ERP, or central NCCT database. Attendance, quiz results, simulated portal state, and certificates are saved in `localStorage` in the current browser. Switching the connection control only simulates connectivity; syncing moves eligible records between the local field-kit queue and the portal view in this same browser. It does not send data to a central service or synchronize across devices. The verification view therefore checks the local prototype record only.
+All names, IDs, and records are synthetic. Attendance, quiz answers, certificates, and the simulated portal are stored in `localStorage` in the current browser. The Online/Offline control only changes the demo state. Sync moves queued records into the portal-style view in this browser; it does not send data to NCCT or synchronize across devices. The certificate QR checks the local prototype record only.
 
-All people and IDs are synthetic. The demo does not use face recognition, hostel/logistics workflows, recruiter services, or external integrations. Camera access is requested only after a user explicitly chooses QR scanning and requires a secure browser context; trainer-confirmed ID remains available as a fallback.
+This is **not** a production LMS, central NCCT database, official credential service, or connected hardware kit. It does not use facial recognition. A production system would still need approved devices and operating procedures, secure accounts and backend services, tested offline conflict handling, cross-device sync, an authoritative certificate verifier, and privacy/security and field testing.
+
+Camera access is requested only after a user explicitly chooses QR scanning and requires a secure browser context. Trainer-confirmed ID remains available as a fallback.
 
 ## Run locally
 
@@ -25,7 +32,7 @@ npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite. To create a static production build:
+Open the local URL printed by Vite. To create a static build:
 
 ```bash
 npm run build
@@ -33,10 +40,10 @@ npm run build
 
 ## Temporary preview
 
-With `dist/` built and Wrangler 4.102.0 available through `npx`, deploy a temporary preview with:
+With the static build and Wrangler 4.102.0 available through `npx`, an unauthenticated temporary preview can be deployed with:
 
 ```bash
 npx --yes wrangler@4.102.0 deploy --temporary
 ```
 
-The temporary preview is public to anyone who has its link. It is not a production deployment and does not add a central backend.
+Anyone with the preview link can access that temporary deployment. It is not a production deployment and does not add a central backend.
