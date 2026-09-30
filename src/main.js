@@ -21,6 +21,9 @@ const questions = [
   { prompt: 'What should happen when offline attendance is synced?', choices: ['Count every scan as a new visit', 'Replace all local activity', 'Deduplicate events before counting them'], answer: 2 },
   { prompt: 'When can this prototype issue a completion certificate?', choices: ['As soon as a trainee opens the course', 'After synced attendance and a synced passing quiz', 'Whenever a trainer presses a certificate button'], answer: 1 }
 ];
+const GUIDED_SESSION_ID = 'guided-batch-08-demo-session';
+const GUIDED_TRAINEE_ID = trainees[0].id;
+const GUIDED_QUIZ_ANSWERS = [0, 1, 2, 1];
 const initialState = {
   version: 1,
   online: true,
@@ -70,8 +73,9 @@ const icon = (name, size = 18) => {
 };
 const esc = (value = '') => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 const person = id => trainees.find(item => item.id === id);
+const isCurrentSessionEvent = event => event.sessionId === SESSION_ID || event.sessionId === GUIDED_SESSION_ID;
 const pendingCount = () => state.attendanceEvents.filter(event => !event.synced).length + state.assessmentEvents.filter(event => !event.synced).length;
-const syncedAttendance = id => state.attendanceEvents.filter(event => event.traineeId === id && event.sessionId === SESSION_ID && event.synced);
+const syncedAttendance = id => state.attendanceEvents.filter(event => event.traineeId === id && isCurrentSessionEvent(event) && event.synced);
 const latestAssessment = id => state.assessmentEvents.filter(event => event.traineeId === id).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
 const currentCertificate = id => state.certificates.find(certificate => certificate.traineeId === id);
 const isLessonRead = id => Boolean(state.lessonRead[id]);
@@ -107,16 +111,18 @@ function setConnection(online) {
     setToast(waiting ? `Connection restored · ${waiting} item${waiting === 1 ? '' : 's'} waiting to sync` : 'Connection restored · all caught up');
   } else setToast('Field kit is offline · new activity will queue on this device');
 }
-function recordAttendance(id, source = 'trainer ID') {
+function recordAttendance(id, source = 'trainer ID', options = {}) {
   const trainee = person(id);
   if (!trainee) { setToast('Trainee ID not found · check the card and try again', 'error'); return; }
-  if (state.attendanceEvents.some(event => event.traineeId === id && event.sessionId === SESSION_ID)) {
+  const sessionId = options.guidedDemo ? GUIDED_SESSION_ID : SESSION_ID;
+  if (state.attendanceEvents.some(event => event.traineeId === id && event.sessionId === sessionId)) {
     setToast(`${trainee.name} is already checked in · duplicate not counted`, 'error');
     return;
   }
   const event = {
-    id: crypto.randomUUID(), traineeId: id, sessionId: SESSION_ID,
-    source, createdAt: new Date().toISOString(), synced: state.online
+    id: crypto.randomUUID(), traineeId: id, sessionId,
+    source, createdAt: new Date().toISOString(), synced: state.online,
+    guidedDemo: Boolean(options.guidedDemo)
   };
   state.attendanceEvents.unshift(event);
   state.activeTraineeId = id;
@@ -134,14 +140,23 @@ function submitQuiz(form) {
   if (!isLessonRead(state.activeTraineeId)) { setToast('Mark the lesson as read before starting the check', 'error'); return; }
   const data = new FormData(form);
   const answers = questions.map((_, index) => Number(data.get(`q${index}`)));
+  submitQuizAnswers(answers);
+}
+function submitQuizAnswers(answers, options = {}) {
+  if (!isLessonRead(state.activeTraineeId)) { setToast('Mark the lesson as read before starting the check', 'error'); return; }
   if (answers.some(value => !Number.isInteger(value))) { setToast('Choose an answer for each question', 'error'); return; }
+  if (options.guidedDemo && state.assessmentEvents.some(event => event.traineeId === state.activeTraineeId && event.guidedDemo)) {
+    setToast('Guided sample quiz already recorded · replay reused the existing result');
+    return;
+  }
   const correct = answers.reduce((sum, answer, index) => sum + (answer === questions[index].answer ? 1 : 0), 0);
   const score = Math.round(correct / questions.length * 100);
   const event = {
     id: crypto.randomUUID(), traineeId: state.activeTraineeId, score, correct,
-    total: questions.length, answers, createdAt: new Date().toISOString(), synced: state.online
+    total: questions.length, answers, createdAt: new Date().toISOString(), synced: state.online,
+    guidedDemo: Boolean(options.guidedDemo)
   };
-  state.assessmentEvents = state.assessmentEvents.filter(item => item.traineeId !== state.activeTraineeId);
+  state.assessmentEvents = state.assessmentEvents.filter(item => item.traineeId !== state.activeTraineeId || Boolean(item.guidedDemo) !== Boolean(options.guidedDemo));
   state.assessmentEvents.unshift(event);
   save();
   render();
@@ -159,7 +174,8 @@ function maybeIssueCertificate(id) {
     id: `NCCT-CT-2026-${id.replace('STU-', '')}`,
     traineeId: id, traineeName: trainee.name,
     course: 'Digital records for stronger cooperatives',
-    issuedAt: new Date().toISOString(), verified: true
+    issuedAt: new Date().toISOString(), verified: true,
+    guidedDemo: Boolean(state.attendanceEvents.some(event => event.traineeId === id && event.sessionId === GUIDED_SESSION_ID) && assessment?.guidedDemo)
   };
   state.certificates.unshift(certificate);
   save();
@@ -228,10 +244,10 @@ function renderAppShell() {
   </div>`;
 }
 function renderOverview() {
-  const attendanceCount = new Set(state.attendanceEvents.filter(event => event.synced && event.sessionId === SESSION_ID).map(event => event.traineeId)).size;
+  const attendanceCount = new Set(state.attendanceEvents.filter(event => event.synced && isCurrentSessionEvent(event)).map(event => event.traineeId)).size;
   const pending = pendingCount();
   const activeProgress = latestAssessment(state.activeTraineeId);
-  const activeAttendance = state.attendanceEvents.some(event => event.traineeId === state.activeTraineeId && event.sessionId === SESSION_ID);
+  const activeAttendance = state.attendanceEvents.some(event => event.traineeId === state.activeTraineeId && isCurrentSessionEvent(event));
   return `<div class="stats-grid">
     <article class="stat-card"><div class="stat-top"><span>COHORT</span><span class="stat-icon mint-icon">${icon('users', 17)}</span></div><strong>06</strong><div class="stat-foot"><span class="stat-note">Synthetic trainees</span><span class="stat-tag">Batch 08</span></div></article>
     <article class="stat-card"><div class="stat-top"><span>ATTENDANCE</span><span class="stat-icon coral-icon">${icon('check', 17)}</span></div><strong>${String(attendanceCount).padStart(2, '0')}<small> / 06</small></strong><div class="stat-foot"><span class="stat-note">Synced to portal</span><span class="mini-progress"><i style="width:${attendanceCount / 6 * 100}%"></i></span></div></article>
@@ -264,7 +280,7 @@ function renderOverview() {
   </div>`;
 }
 function renderTraineeRow(trainee) {
-  const event = state.attendanceEvents.find(item => item.traineeId === trainee.id && item.sessionId === SESSION_ID);
+  const event = state.attendanceEvents.find(item => item.traineeId === trainee.id && isCurrentSessionEvent(item));
   const assessment = latestAssessment(trainee.id);
   const badge = event ? (event.synced ? '<span class="status-chip success">Present</span>' : '<span class="status-chip pending"><i></i>Pending</span>') : '<span class="status-chip quiet">Not checked in</span>';
   const learning = assessment ? `<span class="score-pill ${assessment.synced ? (assessment.score >= PASS_SCORE ? 'score-good' : 'score-low') : 'score-pending'}">${assessment.score}%${assessment.synced ? '' : ' · queued'}</span>` : '<span class="muted-dash">—</span>';
@@ -279,7 +295,7 @@ function renderFieldKit() {
     ...state.attendanceEvents.map(event => ({ ...event, type: 'Attendance', sub: `${event.source} · ${person(event.traineeId)?.name || event.traineeId}` })),
     ...state.assessmentEvents.map(event => ({ ...event, type: 'Learning', sub: `Knowledge check · ${person(event.traineeId)?.name || event.traineeId} · ${event.score}%` }))
   ].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 5);
-  return `<div class="field-grid"><section class="card capture-card"><div class="card-heading-row"><div><div class="section-kicker">ATTENDANCE CAPTURE</div><h2>Check in a trainee</h2><p>Use a printed QR card or confirm the ID with the trainer.</p></div><span class="offline-device-badge ${state.online ? 'connected' : 'offline'}"><i></i>${state.online ? 'Device online' : 'Offline mode'}</span></div>
+  return `<section id="hardwareStatusCard" class="hardware-status-card"><div class="hardware-status-top"><div><span class="section-kicker">INTENDED FIELD SETUP</span><h2>One trainer device, simple support</h2></div><span class="hardware-not-connected"><i></i>NO HARDWARE CONNECTED</span></div><p>For a real pilot: one Android phone or tablet with its built-in camera for printed QR cards; a power bank for a long day; and Wi-Fi or a mobile hotspot when it is time to sync. Staff can review the cohort on an existing laptop or desktop.</p><div class="hardware-chips"><span>Built-in camera · optional QR scan</span><span>Separate scanner not required</span><span>No face recognition</span></div></section><div class="field-grid"><section class="card capture-card"><div class="card-heading-row"><div><div class="section-kicker">ATTENDANCE CAPTURE</div><h2>Check in a trainee</h2><p>Use a printed QR card or confirm the ID with the trainer.</p></div><span class="offline-device-badge ${state.online ? 'connected' : 'offline'}"><i></i>${state.online ? 'Device online' : 'Offline mode'}</span></div>
     <div class="capture-band"><div class="band-icon">${icon('qr', 19)}</div><div><strong>Batch 08 · PACS digital readiness</strong><small>One attendance per trainee for today’s demo session.</small></div></div>
     <label class="field-label" for="traineeSelect">ACTIVE TRAINEE</label><div class="select-wrap"><select id="traineeSelect">${trainees.map(t => `<option value="${t.id}" ${t.id === state.activeTraineeId ? 'selected' : ''}>${t.name} · ${t.id}</option>`).join('')}</select>${icon('chevron', 16)}</div>
     <div class="capture-actions"><button id="scanQrButton" class="button button-primary capture-action">${icon('qr', 17)} Scan QR card</button><button id="showCardsButton" class="button button-outline capture-action">${icon('print', 17)} Show demo cards</button></div>
@@ -295,6 +311,14 @@ function renderFieldKit() {
   </section>
   <section class="card field-tip"><div class="tip-icon">${icon('spark', 18)}</div><div><span class="section-kicker">FIELD NOTE</span><strong>Offline by design, not by guesswork</strong><p>Each trainee can count once per session. The portal only sees records after you reconnect and sync.</p></div></section></div>`;
 }
+function renderQuizFeedback(result) {
+  if (!Array.isArray(result.answers)) return '';
+  return `<div class="quiz-answer-review" aria-label="Answer-by-answer feedback">${questions.map((question, index) => {
+    const answer = result.answers[index];
+    const correct = answer === question.answer;
+    return `<div class="quiz-answer-row ${correct ? 'correct' : 'incorrect'}"><span class="answer-number">Q${index + 1}</span><div><strong>${correct ? 'Correct' : 'Review this answer'}</strong><small>${esc(question.choices[answer] ?? 'No answer recorded')}</small></div><span class="answer-result">${correct ? icon('check', 13) : '×'}</span></div>`;
+  }).join('')}</div>`;
+}
 function renderLesson() {
   const id = state.activeTraineeId;
   const trainee = person(id);
@@ -306,7 +330,7 @@ function renderLesson() {
     <div class="reading-content"><p class="reading-lede">Clear records help members make informed decisions and help a cooperative stay ready for the next opportunity.</p><div class="reading-point"><span class="point-number">01</span><div><strong>Write it down while it is fresh</strong><p>Capture the date, purpose, amount, and people involved in a transaction. A regular routine makes later reviews easier.</p></div></div><div class="reading-point"><span class="point-number">02</span><div><strong>Keep personal information purposeful</strong><p>Record only the details needed for cooperative work. Store member information carefully and let people know why it is being collected.</p></div></div><div class="reading-point"><span class="point-number">03</span><div><strong>Check the totals together</strong><p>Review entries with another authorised person. A second look can catch mistakes before they become confusing.</p></div></div><div class="lesson-callout"><span>${icon('spark', 17)}</span><div><strong>Remember</strong><p>Simple, consistent, carefully checked records are more useful than a complicated system no one can keep up.</p></div></div></div>
     ${lessonRead ? `<button id="startQuizButton" class="button button-primary wide-button">${quizDone ? 'Review knowledge check' : 'Continue to knowledge check'} ${icon('arrow', 16)}</button>` : `<button id="markReadButton" class="button button-primary wide-button">Mark lesson read & continue ${icon('arrow', 16)}</button>`}
   </section><section class="card quiz-panel" id="quizPanel"><div class="card-heading-row"><div><div class="section-kicker">KNOWLEDGE CHECK</div><h2>Put it into practice</h2></div><span class="quiz-count">4 questions</span></div>
-    ${!lessonRead ? `<div class="quiz-locked"><div class="lock-icon">${icon('book', 21)}</div><strong>Finish the short reading first</strong><p>When you’re ready, mark the lesson as read to unlock the knowledge check.</p><span class="locked-step"><i>1</i> Lesson <span class="locked-line"></span><i class="muted-step">2</i> Quiz</span></div>` : quizDone ? `<div class="quiz-result ${last.score >= PASS_SCORE ? 'passed' : 'needs-retry'}"><div class="result-ring"><strong>${last.score}%</strong><span>SCORE</span></div><div><span class="result-status">${last.score >= PASS_SCORE ? 'Nice work — passed' : 'A little more practice'}</span><p>${last.correct} of ${last.total} answers correct. ${last.synced ? 'Result synced to the portal.' : 'Result is saved locally and pending sync.'}</p></div></div><button id="retryQuizButton" class="button button-outline wide-button">Retake the knowledge check ${icon('arrow', 15)}</button>` : `<form id="quizForm" class="quiz-form">${questions.map((question, index) => `<fieldset class="quiz-question"><legend><span>${String(index + 1).padStart(2, '0')}</span>${esc(question.prompt)}</legend><div class="choice-list">${question.choices.map((choice, choiceIndex) => `<label class="quiz-choice"><input type="radio" name="q${index}" value="${choiceIndex}"/><span class="choice-check"></span><span>${esc(choice)}</span></label>`).join('')}</div></fieldset>`).join('')}<div class="quiz-submit-row"><span>${icon('shield', 14)} ${state.online ? 'Result syncs to this browser’s portal.' : 'Result queues on this device while offline.'}</span><button class="button button-dark" type="submit">Submit answers ${icon('arrow', 15)}</button></div></form>`}
+    ${!lessonRead ? `<div class="quiz-locked"><div class="lock-icon">${icon('book', 21)}</div><strong>Finish the short reading first</strong><p>When you’re ready, mark the lesson as read to unlock the knowledge check.</p><span class="locked-step"><i>1</i> Lesson <span class="locked-line"></span><i class="muted-step">2</i> Quiz</span></div>` : quizDone ? `<div class="quiz-result ${last.score >= PASS_SCORE ? 'passed' : 'needs-retry'}"><div class="result-ring"><strong>${last.score}%</strong><span>SCORE</span></div><div><span class="result-status">${last.score >= PASS_SCORE ? 'Nice work — passed' : 'A little more practice'}</span><p>${last.correct} of ${last.total} answers correct. ${last.synced ? 'Result synced to the portal.' : 'Result is saved locally and pending sync.'}</p></div></div>${renderQuizFeedback(last)}<button id="retryQuizButton" class="button button-outline wide-button">Retake the knowledge check ${icon('arrow', 15)}</button>` : `<form id="quizForm" class="quiz-form">${questions.map((question, index) => `<fieldset class="quiz-question"><legend><span>${String(index + 1).padStart(2, '0')}</span>${esc(question.prompt)}</legend><div class="choice-list">${question.choices.map((choice, choiceIndex) => `<label class="quiz-choice"><input type="radio" name="q${index}" value="${choiceIndex}"/><span class="choice-check"></span><span>${esc(choice)}</span></label>`).join('')}</div></fieldset>`).join('')}<div class="quiz-submit-row"><span>${icon('shield', 14)} ${state.online ? 'Result syncs to this browser’s portal.' : 'Result queues on this device while offline.'}</span><button class="button button-dark" type="submit">Submit answers ${icon('arrow', 15)}</button></div></form>`}
   </section></div><div class="criteria-strip"><span class="criteria-icon">${icon('award', 18)}</span><div><strong>Certificate criteria</strong><p>At least ${ATTENDANCE_REQUIRED} attendance record synced <i>+</i> a synced quiz score of ${PASS_SCORE}% or higher. No manual override.</p></div><button class="text-link" data-view="certificates">View certificate rules ${icon('arrow', 13)}</button></div>`;
 }
 function renderCourses() {
@@ -316,7 +340,7 @@ function renderCourses() {
     <div class="stats-grid compact-stats"><article class="stat-card"><div class="stat-top"><span>ENROLLED</span><span class="stat-icon mint-icon">${icon('users', 17)}</span></div><strong>06</strong><div class="stat-foot"><span class="stat-note">All demo profiles</span></div></article><article class="stat-card"><div class="stat-top"><span>ATTENDANCE</span><span class="stat-icon coral-icon">${icon('check', 17)}</span></div><strong>${String(checked).padStart(2, '0')}<small> / 06</small></strong><div class="stat-foot"><span class="stat-note">Synced records</span></div></article><article class="stat-card"><div class="stat-top"><span>LEARNING</span><span class="stat-icon blue-icon">${icon('book', 17)}</span></div><strong>${String(learned).padStart(2, '0')}<small> / 06</small></strong><div class="stat-foot"><span class="stat-note">Quiz results synced</span></div></article></div>
     <div class="catalog-head"><div><div class="section-kicker">COURSE CATALOG</div><h2>Learning for this cohort</h2></div><div class="catalog-tabs"><button class="${state.courseTab === 'active' ? 'selected' : ''}" data-action="course-tab" data-tab="active">Active <span>1</span></button><button class="${state.courseTab === 'planned' ? 'selected' : ''}" data-action="course-tab" data-tab="planned">In the pipeline <span>1</span></button></div></div>
     ${state.courseTab === 'active' ? `<article class="course-list-card card"><div class="course-list-icon">${icon('book', 21)}</div><div class="course-list-copy"><div class="course-list-tags"><span class="active-tag">ACTIVE</span><span class="course-code">CT-08-01</span></div><h3>Digital records for stronger cooperatives</h3><p>Practical record-keeping, privacy basics, and consistent checks for cooperative teams.</p><div class="course-list-meta"><span>${icon('clock', 14)} 12 min</span><span>${icon('users', 14)} 6 enrolled</span><span>${icon('award', 14)} Quiz · pass ${PASS_SCORE}%</span></div></div><div class="course-list-end"><div class="mini-completion"><span>COHORT PROGRESS</span><div class="progress-bar"><i style="width:${learned / 6 * 100}%"></i></div><small>${learned} of 6 synced</small></div><button class="button button-primary small-button" data-view="lesson">Open course ${icon('arrow', 14)}</button></div></article>` : `<article class="course-list-card card planned-course"><div class="course-list-icon blue-tile">${icon('grid', 21)}</div><div class="course-list-copy"><div class="course-list-tags"><span class="planned-tag">PLANNED</span><span class="course-code">CT-08-02</span></div><h3>Member services & financial literacy</h3><p>A future cohort module placeholder. Lesson content and assessments are not included in this prototype.</p><div class="course-list-meta"><span>${icon('clock', 14)} Draft</span><span>${icon('users', 14)} Cohort dependent</span></div></div><div class="course-list-end"><span class="not-in-scope">Not in demo</span></div></article>`}
-    <section class="card cohort-roster"><div class="card-heading-row"><div><div class="section-kicker">COHORT ROSTER</div><h2>Training status</h2></div><span class="roster-count">6 participants</span></div><div class="trainee-table-wrap"><table class="trainee-table"><thead><tr><th>TRAINEE</th><th>ROLE / REGION</th><th>ATTENDANCE</th><th>LEARNING</th><th>CERTIFICATE</th></tr></thead><tbody>${trainees.map(trainee => { const cert = currentCertificate(trainee.id); const event = state.attendanceEvents.find(item => item.traineeId === trainee.id); const assessment = latestAssessment(trainee.id); return `<tr><td><div class="trainee-cell"><span class="avatar ${trainee.tone}">${trainee.initials}</span><div><strong>${trainee.name}</strong><small>${trainee.id}</small></div></div></td><td><span class="role-region">${trainee.role}<small>${trainee.institution}</small></span></td><td>${event ? (event.synced ? '<span class="status-chip success">Present</span>' : '<span class="status-chip pending"><i></i>Pending sync</span>') : '<span class="status-chip quiet">Not yet</span>'}</td><td>${assessment ? `<span class="score-pill ${assessment.synced ? (assessment.score >= PASS_SCORE ? 'score-good' : 'score-low') : 'score-pending'}">${assessment.score}%${assessment.synced ? '' : ' · queued'}</span>` : '<span class="muted-dash">Not started</span>'}</td><td>${cert ? `<span class="status-chip success">${icon('award', 12)} Issued</span>` : '<span class="muted-dash">—</span>'}</td></tr>`; }).join('')}</tbody></table></div><div class="roster-foot">${icon('shield', 14)} Sample records only · no real participant information</div></section>`;
+    <section class="card cohort-roster"><div class="card-heading-row"><div><div class="section-kicker">COHORT ROSTER</div><h2>Training status</h2></div><span class="roster-count">6 participants</span></div><div class="trainee-table-wrap"><table class="trainee-table"><thead><tr><th>TRAINEE</th><th>ROLE / REGION</th><th>ATTENDANCE</th><th>LEARNING</th><th>CERTIFICATE</th></tr></thead><tbody>${trainees.map(trainee => { const cert = currentCertificate(trainee.id); const event = state.attendanceEvents.find(item => item.traineeId === trainee.id); const assessment = latestAssessment(trainee.id); return `<tr class="${trainee.id === GUIDED_TRAINEE_ID ? 'guided-trainee-row' : ''}"><td><div class="trainee-cell"><span class="avatar ${trainee.tone}">${trainee.initials}</span><div><strong>${trainee.name}</strong><small>${trainee.id}</small></div></div></td><td><span class="role-region">${trainee.role}<small>${trainee.institution}</small></span></td><td>${event ? (event.synced ? '<span class="status-chip success">Present</span>' : '<span class="status-chip pending"><i></i>Pending sync</span>') : '<span class="status-chip quiet">Not yet</span>'}</td><td>${assessment ? `<span class="score-pill ${assessment.synced ? (assessment.score >= PASS_SCORE ? 'score-good' : 'score-low') : 'score-pending'}">${assessment.score}%${assessment.synced ? '' : ' · queued'}</span>` : '<span class="muted-dash">Not started</span>'}</td><td>${cert ? `<span class="status-chip success">${icon('award', 12)} Issued</span>` : '<span class="muted-dash">—</span>'}</td></tr>`; }).join('')}</tbody></table></div><div class="roster-foot">${icon('shield', 14)} Sample records only · no real participant information</div></section>`;
 }
 function renderCertificates() {
   const activeId = state.activeTraineeId;
@@ -468,6 +492,65 @@ const guidedTour = createGuidedTour({
     state.view = view;
     if (new URLSearchParams(location.search).has('verify')) history.replaceState({}, '', location.pathname);
     save();
+  },
+  actions: {
+    prepare() {
+      state.attendanceEvents = state.attendanceEvents.filter(event => !event.guidedDemo);
+      state.assessmentEvents = state.assessmentEvents.filter(event => !event.guidedDemo);
+      state.certificates = state.certificates.filter(certificate => !certificate.guidedDemo);
+      state.activeTraineeId = GUIDED_TRAINEE_ID;
+      state.online = true;
+      save();
+    },
+    async perform(action) {
+      const guidedAttendance = () => state.attendanceEvents.find(event => event.guidedDemo && event.traineeId === GUIDED_TRAINEE_ID && event.sessionId === GUIDED_SESSION_ID);
+      if (action === 'offline') {
+        setConnection(false);
+        return 'Connection status changed to Offline; new guided records will be pending.';
+      }
+      if (action === 'attendance') {
+        state.activeTraineeId = GUIDED_TRAINEE_ID;
+        if (!guidedAttendance()) recordAttendance(GUIDED_TRAINEE_ID, 'trainer-confirmed ID', { guidedDemo: true });
+        else render();
+        return guidedAttendance() ? 'One synthetic trainer-confirmed check-in is present. Back/replay reuses it instead of adding another.' : 'The trainer-confirmed check-in was not recorded; check the selected synthetic ID.';
+      }
+      if (action === 'duplicate') {
+        const before = state.attendanceEvents.filter(event => event.guidedDemo && event.traineeId === GUIDED_TRAINEE_ID && event.sessionId === GUIDED_SESSION_ID).length;
+        recordAttendance(GUIDED_TRAINEE_ID, 'trainer-confirmed ID', { guidedDemo: true });
+        const after = state.attendanceEvents.filter(event => event.guidedDemo && event.traineeId === GUIDED_TRAINEE_ID && event.sessionId === GUIDED_SESSION_ID).length;
+        return before === 1 && after === 1 ? 'The repeat was rejected. Exactly one guided attendance event remains.' : `Duplicate check finished; guided attendance count is ${after}.`;
+      }
+      if (action === 'lesson') {
+        state.activeTraineeId = GUIDED_TRAINEE_ID;
+        save();
+        if (!isLessonRead(GUIDED_TRAINEE_ID)) markLessonRead();
+        else render();
+        return 'The short lesson is marked read for the synthetic trainee; the quiz is unlocked.';
+      }
+      if (action === 'quiz') {
+        state.activeTraineeId = GUIDED_TRAINEE_ID;
+        if (!state.assessmentEvents.some(event => event.guidedDemo && event.traineeId === GUIDED_TRAINEE_ID)) {
+          submitQuizAnswers(GUIDED_QUIZ_ANSWERS, { guidedDemo: true });
+        } else render();
+        const result = state.assessmentEvents.find(event => event.guidedDemo && event.traineeId === GUIDED_TRAINEE_ID);
+        return result ? `Sample quiz recorded: ${result.correct}/${result.total} correct (${result.score}%), ${result.synced ? 'synced' : 'pending sync'}. Replay keeps the same result.` : 'The quiz result was not recorded.';
+      }
+      if (action === 'online') {
+        setConnection(true);
+        return 'Connection status changed to Online. The queue is still pending until Sync now runs.';
+      }
+      if (action === 'sync') {
+        await syncNow();
+        return pendingCount() === 0 ? 'Sync completed. Guided attendance and quiz records are now marked synced in this browser.' : `${pendingCount()} item(s) are still pending in this browser.`;
+      }
+      if (action === 'verify') {
+        const certificate = currentCertificate(GUIDED_TRAINEE_ID);
+        if (!certificate) return 'No certificate is available yet; both completion records must be synced first.';
+        openVerification(certificate.id);
+        return 'Opened the existing local verifier for the synthetic certificate; no central service was contacted.';
+      }
+      return '';
+    },
   },
   renderApp: render,
 });

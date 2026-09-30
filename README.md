@@ -3,17 +3,17 @@ A responsive, browser-only prototype for a cooperative training field kit and po
 
 ## Guided walkthrough
 
-Open the app and choose **Start** in the top bar. A highlighted screen and plain-language tip explain each step. Use **Next** and **Back** to move through the actual prototype screens; choose **Finish walkthrough** on the presentation-style conclusion.
+Open the app and choose **Start** in the top bar. Each **Next** advances to a highlighted app screen and performs the corresponding synthetic demo action, including attendance, duplicate rejection, lesson completion, the four-question quiz, reconnect, sync, certificate issuance, and local verification. **Back** replays the current step safely; guided attendance and quiz results are reused rather than duplicated. **Restart** resets only the walkthrough's synthetic events, while **Exit** returns to the normal app. The ordinary navigation and manual app actions remain available outside the walkthrough.
 
 The walkthrough explains:
 
-1. **Training goal:** a practical cooperative record-keeping lesson with a clear way to follow participation and learning.
-2. **Field team:** trainees take part, a trainer facilitates and confirms attendance, and a coordinator reviews cohort progress. The shared phone/tablet is only an example of the intended field workflow; no physical hardware is connected.
-3. **Offline attendance:** switch the app’s connection control to Offline and use a synthetic trainee ID. QR scanning is optional; camera permission is requested only when Scan QR card is chosen.
-4. **Lesson and quiz:** mark the short lesson read, then answer four questions. A score of 75% or more passes this demo check.
-5. **Pending records:** offline attendance and quiz activity wait in the browser’s local queue.
-6. **Sync and portal view:** switch to Online, choose **Sync now**, and view the resulting attendance and learning status in the cohort roster.
-7. **Certificate:** one synced attendance record plus a synced quiz score of at least 75% makes the synthetic trainee eligible. The QR opens a local verification view.
+1. **Training goal and intended hardware:** introduce practical cooperative record keeping and a modest possible field setup (Android phone/tablet, optional built-in camera QR scan, power bank, and later Wi-Fi/hotspot); clearly state that no hardware is connected.
+2. **Offline attendance:** set the simulated status to Offline; record one synthetic check-in with trainer-confirmed ID; attempt a duplicate and show it is rejected.
+3. **Lesson and quiz:** complete a short reading and submit four sample answers, with visible per-question feedback. A score of 75% or more passes.
+4. **Pending records:** show attendance and quiz activity in the browser-local queue.
+5. **Reconnect and simulated sync:** return to Online, run **Sync now**, and move the records into the portal-style view in this same browser.
+6. **Portal and certificate:** show the updated synthetic trainee row; issue a certificate only when attendance and the passing quiz are both synced, then open its local verification view.
+7. **Prototype limits:** finish by distinguishing this browser-only demonstration from a real NCCT system.
 
 The app remains usable without the walkthrough. Existing Field kit, Lesson & quiz, Courses & cohorts, Certificates, QR-card, verification, connection-toggle, sync, and reset-demo actions are retained.
 
@@ -23,7 +23,7 @@ All names, IDs, and records are synthetic. Attendance, quiz answers, certificate
 
 This is **not** a production LMS, central NCCT database, official credential service, or connected hardware kit. It does not use facial recognition. A production system would still need approved devices and operating procedures, secure accounts and backend services, tested offline conflict handling, cross-device sync, an authoritative certificate verifier, and privacy/security and field testing.
 
-Camera access is requested only after a user explicitly chooses QR scanning and requires a secure browser context. Trainer-confirmed ID remains available as a fallback.
+The guided walkthrough does not require camera access; it records attendance using trainer-confirmed ID. In ordinary manual mode, camera access is requested only after the user explicitly chooses QR scanning and requires a secure browser context. Trainer-confirmed ID remains available as a fallback.
 
 ## Run locally
 
